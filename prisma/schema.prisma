@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Listing {
+  id          String   @id @default(cuid())
+  airbnbId    String   @unique
+  title       String
+  description String?
+  address     String
+  city        String   @default("Le Mans")
+  basePrice   Float
+  minPrice    Float
+  maxPrice    Float
+  bedrooms    Int
+  bathrooms   Int
+  maxGuests   Int
+  rating      Float?
+  reviewCount Int      @default(0)
+  icalUrl     String?
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings      Booking[]
+  pricingRules  PricingRule[]
+  competitors   Competitor[]
+  reviews       Review[]
+  listingScores ListingScore[]
+}
+
+model Booking {
+  id               String   @id @default(cuid())
+  listingId        String
+  listing          Listing  @relation(fields: [listingId], references: [id])
+  checkIn          DateTime
+  checkOut         DateTime
+  nights           Int
+  pricePerNight    Float
+  totalRevenue     Float
+  cleaningFee      Float    @default(0)
+  hostPayout       Float?
+  guestName        String?
+  source           String   @default("airbnb")
+  status           String   @default("confirmed")
+  revenueSource    String   @default("estimated")
+  confirmationCode String?
+  payoutDate       DateTime?
+  uid              String   @unique
+  createdAt        DateTime @default(now())
+}
+
+model PricingRule {
+  id         String    @id @default(cuid())
+  listingId  String
+  listing    Listing   @relation(fields: [listingId], references: [id])
+  name       String
+  type       String
+  modifier   Float
+  startDate  DateTime?
+  endDate    DateTime?
+  daysOfWeek Int[]
+  condition  Json?
+  priority   Int       @default(0)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+}
+
+model Competitor {
+  id            String            @id @default(cuid())
+  listingId     String
+  listing       Listing           @relation(fields: [listingId], references: [id])
+  source        String            @default("airbnb") // "airbnb" | "hotel"
+  externalUrl   String
+  externalId    String
+  name          String
+  address       String?
+  bedrooms      Int?
+  rating        Float?
+  reviewCount   Int?
+  propertyType  String?
+  imageUrl      String?
+  lastScrapedAt DateTime?
+  prices        CompetitorPrice[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([source, externalId])
+}
+
+model CompetitorPrice {
+  id           String     @id @default(cuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+  date         DateTime
+  price        Float
+  available    Boolean    @default(true)
+  scrapedAt    DateTime   @default(now())
+
+  @@unique([competitorId, date])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  listingId    String
+  listing      Listing  @relation(fields: [listingId], references: [id])
+  airbnbId     String   @unique
+  authorName   String
+  rating       Float
+  comment      String
+  date         DateTime
+  response     String?
+  aiSuggestion String?
+  sentiment    String?
+  keywords     String[]
+  createdAt    DateTime @default(now())
+}
+
+model ListingScore {
+  id               String   @id @default(cuid())
+  listingId        String
+  listing          Listing  @relation(fields: [listingId], references: [id])
+  totalScore       Int
+  titleScore       Int
+  descriptionScore Int
+  photoScore       Int
+  pricingScore     Int
+  responseScore    Int
+  suggestions      Json
+  computedAt       DateTime @default(now())
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  city      String   @default("Le Mans")
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  type      String
+  impact    String   @default("high")
+  source    String?
+  createdAt DateTime @default(now())
+}

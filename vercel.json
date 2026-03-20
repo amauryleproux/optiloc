@@ -1,0 +1,8 @@
+{
+  "crons": [
+    { "path": "/api/sync/cron?job=ical", "schedule": "0 * * * *" },
+    { "path": "/api/sync/cron?job=competitors", "schedule": "0 3 * * *" },
+    { "path": "/api/sync/cron?job=pricing", "schedule": "0 4 * * *" },
+    { "path": "/api/sync/cron?job=listing-score", "schedule": "0 5 * * 1" }
+  ]
+}

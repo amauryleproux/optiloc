@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(npx.cmd prisma:*)",
+      "Bash(/c/Users/amaur/optiloc/node_modules/.bin/prisma db:*)",
+      "Bash(cmd.exe /c \"node -e \"\"console.log\\(''ok''\\)\"\"\")",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/amaur/AppData/Roaming/npm\")",
+      "Bash(node -e \"console.log\\(''ok''\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(tasklist.exe)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 90364 /PID 91320 /PID 90452 /PID 30992\")",
+      "Bash(taskkill.exe /F /PID 90364)",
+      "Bash(taskkill.exe /F /PID 91320)",
+      "Bash(taskkill.exe /F /PID 90452)",
+      "Bash(taskkill.exe /F /PID 30992)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 90364)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 91320)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 90452)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 30992)",
+      "Bash(npx next:*)",
+      "WebSearch",
+      "Read(//c/Users/amaur/AppData/Local/Temp/claude/c--Users-amaur-optiloc/1c280ee3-c52d-46f9-abf6-cb24dd770923/tasks/**)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 38672)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 60060)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //IM node.exe)",
+      "Bash(find /c/Users/amaur/optiloc/scripts -type f -name *.ts -o -name *.js)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\amaur\\optiloc"
+    ]
+  }
+}
