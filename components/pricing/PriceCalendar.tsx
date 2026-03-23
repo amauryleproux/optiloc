@@ -9,7 +9,6 @@ import {
   endOfMonth,
   eachDayOfInterval,
   getDay,
-  isSameMonth,
   isToday,
   addMonths,
   subMonths,
@@ -32,7 +31,6 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const startDayOfWeek = getDay(monthStart);
-  // Adjust for Monday start (European)
   const offset = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 
   const weekDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -43,15 +41,15 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
     );
   }
 
-  function getPriceColor(day: CalendarDay): string {
+  function getDayStyle(day: CalendarDay): string {
     if (day.isBooked) return "bg-indigo-100 text-indigo-700 border-indigo-200";
+    if (day.isOrphan) return "bg-amber-100 text-amber-700 border-amber-300";
     if (!day.isAvailable) return "bg-slate-100 text-slate-400";
-    const ratio = day.recommendedPrice
-      ? day.price / day.recommendedPrice
-      : 1;
-    if (ratio <= 0.95) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (ratio >= 1.15) return "bg-red-50 text-red-700 border-red-200";
-    return "bg-amber-50 text-amber-700 border-amber-200";
+
+    // Color by demand score
+    if (day.demandScore >= 70) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (day.demandScore >= 40) return "bg-amber-50 text-amber-700 border-amber-200";
+    return "bg-red-50 text-red-700 border-red-200";
   }
 
   return (
@@ -90,7 +88,6 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
               {day}
             </div>
           ))}
-          {/* Empty cells for offset */}
           {[...Array(offset)].map((_, i) => (
             <div key={`empty-${i}`} />
           ))}
@@ -101,8 +98,8 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
                 key={date.toISOString()}
                 onClick={() => dayData && onDayClick?.(dayData)}
                 className={cn(
-                  "relative p-1 rounded-lg border text-center min-h-[60px] transition-colors hover:ring-2 hover:ring-indigo-300",
-                  dayData ? getPriceColor(dayData) : "bg-white border-slate-200",
+                  "relative p-1 rounded-lg border text-center min-h-[68px] transition-colors hover:ring-2 hover:ring-indigo-300",
+                  dayData ? getDayStyle(dayData) : "bg-white border-slate-200",
                   isToday(date) && "ring-2 ring-indigo-500"
                 )}
               >
@@ -110,15 +107,37 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
                 {dayData && (
                   <>
                     <div className="text-sm font-bold font-mono mt-0.5">
-                      {dayData.price}€
+                      {dayData.recommendedPrice ?? dayData.price}€
                     </div>
-                    {dayData.isBooked && (
+                    {dayData.isBooked ? (
                       <Badge
                         variant="secondary"
                         className="text-[9px] px-1 py-0 mt-0.5"
                       >
                         Réservé
                       </Badge>
+                    ) : dayData.isOrphan ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-[9px] px-1 py-0 mt-0.5 bg-amber-200 text-amber-800"
+                      >
+                        Orpheline
+                      </Badge>
+                    ) : (
+                      <div className="w-full h-1 bg-slate-200 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${dayData.demandScore}%`,
+                            backgroundColor:
+                              dayData.demandScore >= 70
+                                ? "#10b981"
+                                : dayData.demandScore >= 40
+                                ? "#f59e0b"
+                                : "#ef4444",
+                          }}
+                        />
+                      </div>
                     )}
                   </>
                 )}
@@ -128,22 +147,26 @@ export function PriceCalendar({ days, onDayClick }: PriceCalendarProps) {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />
-            Compétitif
+            Forte demande
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-amber-100 border border-amber-200" />
-            Moyen
+            Demande moyenne
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-red-100 border border-red-200" />
-            Élevé
+            Faible demande
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-indigo-100 border border-indigo-200" />
             Réservé
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded bg-amber-200 border border-amber-300" />
+            Orpheline
           </div>
         </div>
       </CardContent>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getRecommendationsForRange } from "@/lib/pricing-engine";
-import { subMonths, startOfMonth, startOfDay, addDays } from "date-fns";
+import { createEngineFromPrisma } from "@/lib/pricing-engine";
+import { addDays, startOfDay } from "date-fns";
 
 export async function GET() {
   try {
@@ -13,67 +13,113 @@ export async function GET() {
       );
     }
 
-    const recommendations = await getRecommendationsForRange(listing.id, 60);
-
-    // Historical average price from CSV
-    const threeMonthsAgo = startOfMonth(subMonths(new Date(), 3));
-    const csvBookings = await prisma.booking.findMany({
-      where: {
-        listingId: listing.id,
-        revenueSource: "csv",
-        checkIn: { gte: threeMonthsAgo },
-      },
-      select: { pricePerNight: true },
-    });
-    const historicalAvgPrice =
-      csvBookings.length > 0
-        ? Math.round(
-            csvBookings.reduce((s, b) => s + b.pricePerNight, 0) /
-              csvBookings.length
-          )
-        : listing.basePrice;
-
-    // Occupancy rate (next 30 days)
+    // Fetch all data needed by the engine
     const now = new Date();
-    const in30 = addDays(now, 30);
-    const futureBookings = await prisma.booking.findMany({
-      where: {
-        listingId: listing.id,
-        checkIn: { lte: in30 },
-        checkOut: { gte: now },
-        status: "confirmed",
-      },
-    });
-    let bookedNights = 0;
-    for (const b of futureBookings) {
-      const start = b.checkIn > now ? b.checkIn : now;
-      const end = b.checkOut < in30 ? b.checkOut : in30;
-      const { differenceInDays } = await import("date-fns");
-      bookedNights += Math.max(0, differenceInDays(end, start));
-    }
-    const occupancyRate = Math.round((bookedNights / 30) * 100);
+    const in90 = addDays(now, 90);
 
-    // Competitor average
-    const todayPrices = await prisma.competitorPrice.findMany({
-      where: {
-        date: {
-          gte: startOfDay(now),
-          lte: addDays(startOfDay(now), 1),
+    const [bookings, events, competitors, rules] = await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          listingId: listing.id,
+          status: "confirmed",
+          checkOut: { gte: now },
         },
-        available: true,
-      },
-    });
+      }),
+      prisma.event.findMany({
+        where: {
+          OR: [
+            { endDate: { gte: now } },
+            { startDate: { lte: in90 } },
+          ],
+        },
+      }),
+      prisma.competitor.findMany({
+        where: { listingId: listing.id },
+        include: {
+          prices: {
+            where: {
+              date: { gte: startOfDay(now), lte: in90 },
+              available: true,
+            },
+          },
+        },
+      }),
+      prisma.pricingRule.findMany({
+        where: { listingId: listing.id },
+        orderBy: { priority: "desc" },
+      }),
+    ]);
+
+    // Build occupancy map for isBooked flag
+    const bookedDates = new Set<string>();
+    for (const b of bookings) {
+      const checkIn = new Date(b.checkIn);
+      const checkOut = new Date(b.checkOut);
+      const current = new Date(checkIn);
+      while (current < checkOut) {
+        bookedDates.add(current.toISOString().split("T")[0]);
+        current.setDate(current.getDate() + 1);
+      }
+    }
+
+    // Create engine and generate recommendations
+    const engine = createEngineFromPrisma(
+      listing,
+      bookings,
+      events,
+      competitors,
+      rules
+    );
+
+    const recommendations = engine.generateRecommendations(60).map((rec) => ({
+      ...rec,
+      isBooked: bookedDates.has(rec.date),
+    }));
+
+    // Revenue projection
+    const occupancyRate30 =
+      bookings.filter(
+        (b) => b.checkIn <= addDays(now, 30) && b.checkOut >= now
+      ).length > 0
+        ? Math.min(
+            1,
+            bookings.reduce((sum, b) => {
+              const start = b.checkIn > now ? b.checkIn : now;
+              const end =
+                b.checkOut < addDays(now, 30) ? b.checkOut : addDays(now, 30);
+              const diff = Math.max(
+                0,
+                (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              return sum + diff;
+            }, 0) / 30
+          )
+        : 0.5;
+
+    const projection = engine.projectRevenue(60, occupancyRate30);
+
+    // Competitor average for today
+    const todayKey = startOfDay(now).toISOString().split("T")[0];
+    const todayPrices = competitors.flatMap((c) =>
+      c.prices
+        .filter(
+          (p) =>
+            new Date(p.date).toISOString().split("T")[0] === todayKey &&
+            p.available
+        )
+        .map((p) => p.price)
+    );
     const competitorAvg =
       todayPrices.length > 0
         ? Math.round(
-            todayPrices.reduce((s, p) => s + p.price, 0) / todayPrices.length
+            todayPrices.reduce((s, p) => s + p, 0) / todayPrices.length
           )
         : 0;
 
     return NextResponse.json({
       recommendations,
-      historicalAvgPrice,
-      occupancyRate,
+      projection,
+      occupancyRate: Math.round(occupancyRate30 * 100),
       competitorAvg,
     });
   } catch (error) {

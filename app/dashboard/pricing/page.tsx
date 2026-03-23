@@ -11,10 +11,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RefreshCw, TrendingUp, Calendar, Target } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import type { CalendarDay, PriceRecommendation } from "@/types";
+import type { CalendarDay, PriceRecommendation, RevenueProjection } from "@/types";
 
 interface PricingRule {
   id: string;
@@ -28,7 +29,7 @@ interface PricingData {
   calendar: CalendarDay[];
   recommendations: PriceRecommendation[];
   rules: PricingRule[];
-  historicalAvgPrice: number;
+  projection: RevenueProjection | null;
   occupancyRate: number;
   competitorAvg: number;
 }
@@ -44,32 +45,29 @@ export default function PricingPage() {
       if (res.ok) {
         const json = await res.json();
 
-        // Transform recommendations into calendar days
         const calendar: CalendarDay[] = json.recommendations.map(
           (rec: PriceRecommendation) => ({
             date: new Date(rec.date),
             price: rec.basePrice,
             recommendedPrice: rec.recommendedPrice,
-            isAvailable: rec.isAvailable,
-            isBooked: !rec.isAvailable,
-            appliedRules: rec.appliedRules,
+            isAvailable: !rec.isBooked,
+            isBooked: rec.isBooked ?? false,
+            factors: rec.factors,
+            demandScore: rec.demandScore,
+            confidence: rec.confidence,
+            isOrphan: rec.isOrphan,
+            minStay: rec.minStay,
           })
         );
 
-        // Get rules
         const rulesRes = await fetch("/api/pricing/rules");
         const rulesData = rulesRes.ok ? await rulesRes.json() : { rules: [] };
 
         setData({
           calendar,
-          recommendations: json.recommendations.map(
-            (r: PriceRecommendation) => ({
-              ...r,
-              date: new Date(r.date),
-            })
-          ),
+          recommendations: json.recommendations,
           rules: rulesData.rules || [],
-          historicalAvgPrice: json.historicalAvgPrice || 0,
+          projection: json.projection || null,
           occupancyRate: json.occupancyRate || 0,
           competitorAvg: json.competitorAvg || 0,
         });
@@ -92,7 +90,6 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, active }),
       });
-      // Update local state
       setData(
         (prev) =>
           prev && {
@@ -102,7 +99,6 @@ export default function PricingPage() {
             ),
           }
       );
-      // Refresh recommendations after rule change
       fetchData();
     } catch (e) {
       console.error("Failed to toggle rule", e);
@@ -120,9 +116,94 @@ export default function PricingPage() {
   const calendar = data?.calendar || [];
   const recommendations = data?.recommendations || [];
   const rules = data?.rules || [];
+  const projection = data?.projection;
 
   return (
     <div className="space-y-6">
+      {/* Revenue projection cards */}
+      {projection && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Revenu projeté (60j)
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-mono">
+                {projection.projectedRevenue}€
+              </div>
+              {projection.vsCurrentScenario !== 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span
+                    className={
+                      projection.vsCurrentScenario > 0
+                        ? "text-emerald-600"
+                        : "text-red-600"
+                    }
+                  >
+                    {projection.vsCurrentScenario > 0 ? "+" : ""}
+                    {projection.vsCurrentScenario}€
+                  </span>{" "}
+                  vs prix fixe
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Prix moyen/nuit
+              </CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-mono">
+                {projection.avgNightlyRate}€
+              </div>
+              {data?.competitorAvg ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Concurrents : {data.competitorAvg}€/nuit
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Occupation projetée
+              </CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-mono">
+                {projection.projectedOccupancy}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Actuel 30j : {data?.occupancyRate}%
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Meilleur mois
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-mono">
+                {projection.revenueByMonth[projection.bestMonth]}€
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {projection.bestMonth}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Calendar */}
         <div className="xl:col-span-2">
@@ -171,9 +252,7 @@ export default function PricingPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">
-                    Prix de base
-                  </p>
+                  <p className="text-sm text-muted-foreground">Prix de base</p>
                   <p className="text-2xl font-bold font-mono">
                     {selectedDay.price}€
                   </p>
@@ -185,39 +264,113 @@ export default function PricingPage() {
                   </p>
                 </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Statut</p>
-                <Badge
-                  variant={selectedDay.isBooked ? "default" : "secondary"}
-                >
-                  {selectedDay.isBooked
-                    ? "Réservé"
-                    : selectedDay.isAvailable
-                    ? "Disponible"
-                    : "Bloqué"}
-                </Badge>
+
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Statut</p>
+                  <Badge
+                    variant={selectedDay.isBooked ? "default" : "secondary"}
+                  >
+                    {selectedDay.isBooked
+                      ? "Réservé"
+                      : selectedDay.isAvailable
+                      ? "Disponible"
+                      : "Bloqué"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Demande</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${selectedDay.demandScore}%`,
+                          backgroundColor:
+                            selectedDay.demandScore >= 70
+                              ? "#10b981"
+                              : selectedDay.demandScore >= 40
+                              ? "#f59e0b"
+                              : "#ef4444",
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-mono">
+                      {selectedDay.demandScore}%
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Séjour min
+                  </p>
+                  <Badge variant="outline">
+                    {selectedDay.minStay} nuit{selectedDay.minStay > 1 ? "s" : ""}
+                  </Badge>
+                </div>
               </div>
-              {selectedDay.appliedRules.length > 0 && (
+
+              {selectedDay.isOrphan && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                  Nuit orpheline — prix réduit pour combler le trou entre deux
+                  réservations
+                </div>
+              )}
+
+              {selectedDay.factors.length > 0 && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Règles appliquées
+                    Facteurs appliqués
                   </p>
                   <div className="space-y-1">
-                    {selectedDay.appliedRules.map((rule, i) => (
+                    {selectedDay.factors.map((factor, i) => (
                       <div
                         key={i}
-                        className="flex justify-between text-sm bg-slate-50 p-2 rounded"
+                        className="flex justify-between items-start text-sm bg-slate-50 p-2 rounded"
                       >
-                        <span>{rule.name}</span>
-                        <span className="font-mono">
-                          {rule.modifier > 1 ? "+" : ""}
-                          {Math.round((rule.modifier - 1) * 100)}%
-                        </span>
+                        <div>
+                          <span className="font-medium">{factor.name}</span>
+                          <p className="text-xs text-muted-foreground">
+                            {factor.description}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className={
+                            factor.multiplier > 1
+                              ? "bg-emerald-100 text-emerald-700"
+                              : factor.multiplier < 1
+                              ? "bg-red-100 text-red-700"
+                              : ""
+                          }
+                        >
+                          {factor.multiplier > 1 ? "+" : ""}
+                          {Math.round((factor.multiplier - 1) * 100)}%
+                        </Badge>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className={
+                    selectedDay.confidence === "high"
+                      ? "border-emerald-300 text-emerald-700"
+                      : selectedDay.confidence === "medium"
+                      ? "border-amber-300 text-amber-700"
+                      : "border-slate-300 text-slate-500"
+                  }
+                >
+                  Confiance {selectedDay.confidence === "high"
+                    ? "haute"
+                    : selectedDay.confidence === "medium"
+                    ? "moyenne"
+                    : "faible"}
+                </Badge>
+              </div>
             </div>
           )}
         </DialogContent>

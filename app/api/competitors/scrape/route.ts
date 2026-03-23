@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { scrapeAllCompetitors } from "@/lib/scraper";
-import { format, addDays } from "date-fns";
+import { scrapeCompetitorsMultiDate } from "@/lib/scraper";
 import type { CompetitorData } from "@/types";
 
-export const maxDuration = 120; // Vercel Pro: 5min max, Free: 60s
+export const maxDuration = 300; // 5 min pour scraper plusieurs dates
 
 export async function POST() {
   try {
@@ -17,18 +16,18 @@ export async function POST() {
       );
     }
 
-    const today = new Date();
-    const tomorrow = addDays(today, 1);
+    const startTime = Date.now();
 
-    const { airbnb, hotels } = await scrapeAllCompetitors(
+    // Scrape sur 30 jours (dates clés : aujourd'hui, demain, week-ends, J+7/14/21/28)
+    const { airbnb, hotels } = await scrapeCompetitorsMultiDate(
       listing.city,
-      format(today, "yyyy-MM-dd"),
-      format(tomorrow, "yyyy-MM-dd")
+      30
     );
 
     const allResults = [...airbnb, ...hotels];
     let created = 0;
     let updated = 0;
+    let pricePoints = 0;
 
     for (const result of allResults) {
       // Upsert competitor
@@ -62,15 +61,19 @@ export async function POST() {
         },
       });
 
-      // Upsert price for today
+      // Upsert price for the specific date
       await upsertPrice(competitor.id, result);
+      pricePoints++;
 
-      if (competitor.createdAt.getTime() > today.getTime() - 60000) {
+      const now = new Date();
+      if (competitor.createdAt.getTime() > now.getTime() - 60000) {
         created++;
       } else {
         updated++;
       }
     }
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
 
     return NextResponse.json({
       success: true,
@@ -78,6 +81,8 @@ export async function POST() {
       hotels: hotels.length,
       created,
       updated,
+      pricePoints,
+      duration: `${duration}s`,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -90,7 +95,7 @@ export async function POST() {
 }
 
 async function upsertPrice(competitorId: string, result: CompetitorData) {
-  // Normalize date to midnight
+  // Normalize date to noon to avoid timezone issues
   const date = new Date(result.date);
   date.setHours(12, 0, 0, 0);
 

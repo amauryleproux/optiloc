@@ -15,11 +15,11 @@ async function main() {
 
   const events = [
     // 2025 events (past/reference)
-    { name: "24 Heures du Mans 2025", startDate: new Date("2025-06-14"), endDate: new Date("2025-06-15"), type: "race", impact: "high" },
-    // 2026 events
+    { name: "24 Heures du Mans 2025", startDate: new Date("2025-06-14"), endDate: new Date("2025-06-15"), type: "race", impact: "maximum" },
+    // 2026 events — impacts calibrés pour le pricing engine v2
     { name: "24 Heures Motos", startDate: new Date("2026-04-18"), endDate: new Date("2026-04-19"), type: "race", impact: "high" },
-    { name: "MotoGP Le Mans", startDate: new Date("2026-05-15"), endDate: new Date("2026-05-17"), type: "race", impact: "high" },
-    { name: "24 Heures du Mans 2026", startDate: new Date("2026-06-13"), endDate: new Date("2026-06-14"), type: "race", impact: "high" },
+    { name: "MotoGP Le Mans", startDate: new Date("2026-05-15"), endDate: new Date("2026-05-17"), type: "race", impact: "very_high" },
+    { name: "24 Heures du Mans 2026", startDate: new Date("2026-06-13"), endDate: new Date("2026-06-14"), type: "race", impact: "maximum" },
     { name: "Le Mans Classic", startDate: new Date("2026-07-04"), endDate: new Date("2026-07-05"), type: "race", impact: "high" },
     { name: "Nuit des Chimères", startDate: new Date("2026-07-01"), endDate: new Date("2026-09-30"), type: "cultural", impact: "medium" },
     { name: "Fête de la Musique", startDate: new Date("2026-06-21"), endDate: new Date("2026-06-21"), type: "concert", impact: "medium" },

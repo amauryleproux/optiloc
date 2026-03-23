@@ -1,11 +1,20 @@
+export interface PricingFactor {
+  name: string;
+  type: 'event' | 'season' | 'dow' | 'occupancy' | 'pickup' | 'competitor' | 'orphan' | 'rule';
+  multiplier: number;
+  description: string;
+}
+
 export interface PriceRecommendation {
-  date: Date;
+  date: string;
   basePrice: number;
   recommendedPrice: number;
-  appliedRules: { name: string; modifier: number }[];
-  reasoning: string;
-  competitorAvg?: number;
-  isAvailable: boolean;
+  minStay: number;
+  factors: PricingFactor[];
+  demandScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  isOrphan: boolean;
+  isBooked?: boolean;
 }
 
 export interface CompetitorData {
@@ -75,5 +84,19 @@ export interface CalendarDay {
   recommendedPrice?: number;
   isAvailable: boolean;
   isBooked: boolean;
-  appliedRules: { name: string; modifier: number }[];
+  factors: PricingFactor[];
+  demandScore: number;
+  confidence: 'high' | 'medium' | 'low';
+  isOrphan: boolean;
+  minStay: number;
+}
+
+export interface RevenueProjection {
+  projectedRevenue: number;
+  projectedOccupancy: number;
+  avgNightlyRate: number;
+  revenueByMonth: Record<string, number>;
+  bestMonth: string;
+  worstMonth: string;
+  vsCurrentScenario: number;
 }
